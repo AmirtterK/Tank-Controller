@@ -8,16 +8,9 @@ import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 class MainData {
   static double speed = 150;
-
-  static String selectedTheme = "One";
-  static bool startOnBoard = true;
   static List<BluetoothDevice> devices = [];
-
   static bool isConnected = false;
-  static bool isLaserOn = false;
   static late BluetoothConnection device;
-  static String about = "";
-
   static String address = "";
 }
 
