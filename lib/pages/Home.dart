@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:Williams/models/widgets/Appbar.dart';
 import 'package:Williams/models/widgets/myDrawer.dart';
 import 'package:Williams/services/AppData.dart';
@@ -19,7 +18,6 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
   }
 
   @override
@@ -34,7 +32,9 @@ class _HomeState extends State<Home> {
           MoveControllers(),
           Spacer(),
           ActionsControllers(),
-          SizedBox(width: 30,),
+          SizedBox(
+            width: 30,
+          ),
           Container(
             padding: EdgeInsets.only(right: 10),
             height: 250,

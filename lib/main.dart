@@ -10,7 +10,6 @@ import 'package:provider/provider.dart';
 import 'package:Williams/services/themeprovider.dart';
 
 Future<void> main() async {
-  
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -37,7 +36,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 
 Future<void> requestPermissions() async {
   if (await Permission.bluetoothScan.isDenied) {
