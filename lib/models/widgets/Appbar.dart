@@ -1,34 +1,18 @@
 // ignore_for_file: file_names, camel_case_types, avoid_print
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
-import 'package:popover/popover.dart';
 import 'package:Williams/services/AppData.dart';
 import 'package:Williams/widgets/ConnectionCompleted.dart';
 
-class Appbar extends StatefulWidget implements PreferredSizeWidget {
+class Appbar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onUpdate;
+  
   const Appbar({super.key, required this.title, this.onUpdate});
 
   @override
-  State<Appbar> createState() => _AppbarState();
-
-  @override
   Size get preferredSize => const Size.fromHeight(50);
-}
-
-class _AppbarState extends State<Appbar> {
-  Icon icon = Icon(
-    Icons.menu_rounded,
-    size: 32,
-    weight: 500,
-  );
-  @override
-  void initState() {
-    super.initState();
-    
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,114 +20,250 @@ class _AppbarState extends State<Appbar> {
       backgroundColor: Colors.transparent,
       scrolledUnderElevation: 0,
       title: Text(
-        widget.title,
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
+        title,
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w400),
       ),
       actions: [
-        (widget.title == "Controller")
-            ? Builder(
-                key: ValueKey(MainData.address),
-                builder: (BuildContext context) => IconButton(
-                  onPressed: () async {
-                    setState(() {
-                      getDevices();
-                    });
-                    if (!context.mounted) {
-                      return;
-                    }
-                    showPopover(
-                      width: 300,
-                      context: context,
-                      direction: PopoverDirection.bottom,
-                      bodyBuilder: (context) => Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(
-                          MainData.devices.length,
-                          (index) => ListTile(
-                            key: ValueKey(index),
-                            title:
-                                Text(MainData.devices[index].name ?? 'HC-05'),
-                            subtitle: Text(MainData.devices[index].address),
-                            onTap: () async {
-                              if (MainData.address ==
-                                  MainData.devices[index].address) {
-                                setState(() {
-                                  MainData.isConnected = false;
-                                  MainData.address = "";
-                                  MainData.device.close();
-                                  MainData.device.dispose();
-                                });
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      ConnectionCompleted(
-                                          MainData.devices[index].name ??
-                                              'HC-05',
-                                          false));
-                                }
-                              } else {
-                                try {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      Connecting(
-                                          MainData.devices[index].name ??
-                                              'HC-05',
-                                          context,
-                                          true));
-                                  MainData.device =
-                                      await BluetoothConnection.toAddress(
-                                          MainData.devices[index].address);
-                                  print('Connected to the device');
-                                  // await sendCommand('CONNECTED');
-                                  setState(() {
-                                    MainData.isConnected = true;
-                                    MainData.address =
-                                        MainData.devices[index].address;
-                                  });
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                        ConnectionCompleted(
-                                            MainData.devices[index].name ??
-                                                'HC-05',
-                                            true));
-                                  }
-                                } catch (exception) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                        Connecting(
-                                            MainData.devices[index].name ??
-                                                'HC-05',
-                                            context,
-                                            false));
-                                  }
-                                  print('Cannot connect, exception occured');
-                                  setState(() {
-                                    MainData.isConnected = false;
-                                    MainData.address = "";
-                                  });
-                                }
-                              }
-                            },
-                            trailing: Icon(MainData.address ==
-                                    MainData.devices[index].address
-                                ? Icons.check_outlined
-                                : null),
+        if (title == "Controller")
+          StreamBuilder<ConnectionState>(
+            stream: MainData.connectionStream,
+            initialData: MainData.state,
+            builder: (context, snapshot) {
+              final state = snapshot.data ?? MainData.state;
+              return IconButton(
+                onPressed: () => _showBluetoothDialog(context),
+                icon: Icon(
+                  state.isConnected
+                      ? Icons.bluetooth_connected
+                      : Icons.bluetooth,
+                  size: 24,
+                  color: state.isConnected ? Colors.blue : null,
+                ),
+              );
+            },
+          ),
+        const SizedBox(width: 10),
+      ],
+    );
+  }
+
+  Future<void> _showBluetoothDialog(BuildContext context) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      await getDevices();
+      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) _showDeviceList(context);
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) _showError(context, 'Failed to load devices: $e');
+    }
+  }
+
+  void _showDeviceList(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.bluetooth, color: Colors.blue),
+            SizedBox(width: 10),
+            Text('Bluetooth Devices'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: StreamBuilder<ConnectionState>(
+            stream: MainData.connectionStream,
+            initialData: MainData.state,
+            builder: (context, snapshot) {
+              final state = snapshot.data ?? MainData.state;
+              
+              if (state.devices.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.bluetooth_disabled, size: 50, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      const Text('No devices found'),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showBluetoothDialog(context);
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Scan'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              return Column(
+                children: [
+                  // Status
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: state.isConnected ? Colors.green[50] : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          state.isConnected ? Icons.check_circle : Icons.info,
+                          color: state.isConnected ? Colors.green : Colors.grey,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            state.isConnected
+                                ? 'Connected to ${state.address}'
+                                : '${state.devices.length} devices found',
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ),
-                      ),
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                    );
-                  },
-                  icon: Icon(
-                    MainData.isConnected
-                        ? Icons.bluetooth_connected_outlined
-                        : Icons.bluetooth_disabled_outlined,
+                      ],
+                    ),
                   ),
-                ),
-              )
-            : SizedBox(),
-        SizedBox(
-          width: 10,
-        )
-      ],
+                  const SizedBox(height: 12),
+                  
+                  // Device list
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: state.devices.length,
+                      itemBuilder: (context, index) {
+                        final device = state.devices[index];
+                        final isConnected = state.address == device.address;
+                        
+                        return Card(
+                          color: isConnected ? Colors.blue[50] : null,
+                          child: ListTile(
+                            leading: Icon(
+                              isConnected ? Icons.bluetooth_connected : Icons.bluetooth,
+                              color: isConnected ? Colors.blue : Colors.grey,
+                            ),
+                            title: Text(
+                              device.name ?? 'Unknown',
+                              style: TextStyle(
+                                fontWeight: isConnected ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                            subtitle: Text(device.address, style: const TextStyle(fontSize: 11)),
+                            trailing: isConnected
+                                ? const Chip(
+                                    label: Text('Connected', style: TextStyle(fontSize: 10)),
+                                    backgroundColor: Colors.green,
+                                  )
+                                : ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      _connectToDevice(device, context);
+                                    },
+                                    child: const Text('Connect'),
+                                  ),
+                            onTap: isConnected
+                                ? () {
+                                    Navigator.pop(context);
+                                    _disconnectDevice(context);
+                                  }
+                                : () {
+                                    Navigator.pop(context);
+                                    _connectToDevice(device, context);
+                                  },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showBluetoothDialog(context);
+            },
+            child: const Text('Refresh'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _connectToDevice(BluetoothDevice device, BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Connecting...'),
+          ],
+        ),
+      ),
+    );
+    
+    try {
+      final connection = await BluetoothConnection.toAddress(device.address);
+      MainData.updateConnection(
+        isConnected: true,
+        device: connection,
+        address: device.address,
+      );
+      
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          ConnectionCompleted(device.name ?? 'Device', true),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        _showError(context, 'Failed to connect: $e');
+      }
+    }
+  }
+
+  void _disconnectDevice(BuildContext context) {
+    MainData.clearConnection();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Disconnected')),
+    );
+  }
+
+  void _showError(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 }
